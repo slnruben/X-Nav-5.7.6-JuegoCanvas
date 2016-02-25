@@ -3,17 +3,27 @@
 // Slight modifications by Gregorio Robles <grex@gsyc.urjc.es>
 // to meet the criteria of a canvas class for DAT @ Univ. Rey Juan Carlos
 
+const BUTTON_UP = 38;
+const BUTTON_DOWN = 40;
+const BUTTON_RIGTH = 39;
+const BUTTON_LEFT = 37;
+const numStones = 5;
+
 // Create the canvas
 var canvas = document.createElement("canvas");
 var ctx = canvas.getContext("2d");
 canvas.width = 512;
 canvas.height = 480;
+const TOP = 32;
+const BOT = canvas.height - 64;
+const LEFT = 32;
+const RIGTH = canvas.width - 64;
 document.body.appendChild(canvas);
 
 // Background image
 var bgReady = false;
 var bgImage = new Image();
-bgImage.onload = function () {
+bgImage.onload = function() {
 	bgReady = true;
 };
 bgImage.src = "images/background.png";
@@ -21,18 +31,42 @@ bgImage.src = "images/background.png";
 // Hero image
 var heroReady = false;
 var heroImage = new Image();
-heroImage.onload = function () {
+heroImage.onload = function() {
 	heroReady = true;
 };
 heroImage.src = "images/hero.png";
 
-// princess image
+// Princess image
 var princessReady = false;
 var princessImage = new Image();
-princessImage.onload = function () {
+princessImage.onload = function() {
 	princessReady = true;
 };
 princessImage.src = "images/princess.png";
+
+// Stone image
+var stoneReady = false;
+var stoneImage = new Image();
+stoneImage.onload = function() {
+	stoneReady = true;
+};
+stoneImage.src = "images/stone.png";
+
+// Monster image
+var monsterReady = false;
+var monsterImage = new Image();
+monsterImage.onload = function() {
+	monsterReady = true;
+};
+monsterImage.src = "images/monster.png";
+
+// Tower image
+var towerReady = false;
+var towerImage = new Image();
+towerImage.onload = function() {
+	towerReady = true;
+};
+towerImage.src = "images/tower.png";
 
 // Game objects
 var hero = {
@@ -40,6 +74,11 @@ var hero = {
 };
 var princess = {};
 var princessesCaught = 0;
+var stones = [];
+var tower = {};
+var monsters = [];
+var numMonsters = 1;
+var died = false;
 
 // Handle keyboard controls
 var keysDown = {};
@@ -52,40 +91,130 @@ addEventListener("keyup", function (e) {
 	delete keysDown[e.keyCode];
 }, false);
 
-// Reset the game when the player catches a princess
-var reset = function () {
-	hero.x = canvas.width / 2;
-	hero.y = canvas.height / 2;
+var isTouching = function(first, second) {
+	return (first.x <= (second.x + 32)
+		&& second.x <= (first.x + 32)
+		&& first.y <= (second.y + 32)
+		&& second.y <= (first.y + 32));
+}
 
+var isNear = function(arr, element) {
+	for (var i = 0; i < arr.length; i++) {
+		if (element == arr[i]) {
+			continue;
+		}
+		if (isTouching(arr[i], element)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+var checkPosition = function(element) {
+	return (isTouching(hero, element) 
+		|| isTouching(princess, element) 
+		|| isNear(stones, element)
+		|| isNear(monsters, element));
+}
+
+var getRandXPos = function() {
+	return Math.floor(Math.random()*(RIGTH - LEFT)) + LEFT;
+}
+
+var getRandYPos = function() {
+	return Math.floor(Math.random()*(BOT - TOP)) + TOP;
+}
+
+var setCenterPos = function(element) {
+	element.x = canvas.width / 2;
+	element.y = canvas.height / 2;
+}
+
+var setRandPos = function(element) {
+	element.x = getRandXPos();
+	element.y = getRandYPos();
+}
+
+// Initialize elements of array
+var init = function(arr, size) {
+	for (var i = 0; i < size; i++) {
+		var element = {};
+		arr[i] = element;
+	}
+}
+
+// Reset the game when the player catches a princess
+var reset = function() {
+	init(stones, numStones);
+	init(monsters, numMonsters);
+
+	setCenterPos(hero);
+	setCenterPos(tower);
 	// Throw the princess somewhere on the screen randomly
-	princess.x = 32 + (Math.random() * (canvas.width - 64));
-	princess.y = 32 + (Math.random() * (canvas.height - 64));
+	do {
+		setRandPos(princess);
+	} while (isTouching(hero, princess));
+	for (var i in stones) {
+		do {
+			setRandPos(stones[i]);
+		} while (checkPosition(stones[i]));
+	}
+	for (var i in monsters) {
+		do {
+			setRandPos(monsters[i]);
+		} while (checkPosition(monsters[i]));
+	}
 };
+
+var canMoveUp = function() {
+	return (!isNear(stones, hero) && hero.y > TOP);
+}
+
+var canMoveDown = function() {
+	return (!isNear(stones, hero) && hero.y < BOT);
+}
+
+var canMoveRigth = function() {
+	return (!isNear(stones, hero) && hero.x < RIGTH);
+}
+
+var canMoveLeft = function() {
+	return (!isNear(stones, hero) && hero.x > LEFT);
+}
 
 // Update game objects
 var update = function (modifier) {
-	if (38 in keysDown) { // Player holding up
+	if (died) {
+		return;
+	}
+	var posBefore = {};
+	posBefore.x = hero.x;
+	posBefore.y = hero.y;
+	if (BUTTON_UP in keysDown && canMoveUp()) { // Player holding up
 		hero.y -= hero.speed * modifier;
 	}
-	if (40 in keysDown) { // Player holding down
+	if (BUTTON_DOWN in keysDown && canMoveDown()) { // Player holding down
 		hero.y += hero.speed * modifier;
 	}
-	if (37 in keysDown) { // Player holding left
+	if (BUTTON_LEFT in keysDown && canMoveLeft()) { // Player holding left
 		hero.x -= hero.speed * modifier;
 	}
-	if (39 in keysDown) { // Player holding right
+	if (BUTTON_RIGTH in keysDown && canMoveRigth()) { // Player holding right
 		hero.x += hero.speed * modifier;
+	}
+	if (isNear(stones, hero)) {
+		hero.x = posBefore.x;
+		hero.y = posBefore.y;
 	}
 
 	// Are they touching?
-	if (
-		hero.x <= (princess.x + 16)
-		&& princess.x <= (hero.x + 16)
-		&& hero.y <= (princess.y + 16)
-		&& princess.y <= (hero.y + 32)
-	) {
+	if (isTouching(hero, princess)) {
 		++princessesCaught;
 		reset();
+	}
+
+	if (isNear(monsters, hero)) {
+		died = true;
 	}
 };
 
@@ -94,13 +223,24 @@ var render = function () {
 	if (bgReady) {
 		ctx.drawImage(bgImage, 0, 0);
 	}
-
-	if (heroReady) {
-		ctx.drawImage(heroImage, hero.x, hero.y);
-	}
-
 	if (princessReady) {
 		ctx.drawImage(princessImage, princess.x, princess.y);
+	}
+	if (stoneReady) {
+		for (var i in stones) {
+			ctx.drawImage(stoneImage, stones[i].x, stones[i].y);
+		}
+	}
+	if (monsterReady) {
+		for (var i in monsters) {
+			ctx.drawImage(monsterImage, monsters[i].x, monsters[i].y)
+		}
+	}
+	if (towerReady) {
+		ctx.drawImage(towerImage, tower.x, tower.y);
+	}
+	if (heroReady) {
+		ctx.drawImage(heroImage, hero.x, hero.y);
 	}
 
 	// Score
@@ -109,6 +249,9 @@ var render = function () {
 	ctx.textAlign = "left";
 	ctx.textBaseline = "top";
 	ctx.fillText("Princesses caught: " + princessesCaught, 32, 32);
+	if (died) {
+		ctx.fillText("Game Over", 200, 200);
+	}
 };
 
 // The main game loop
