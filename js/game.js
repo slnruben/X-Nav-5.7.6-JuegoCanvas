@@ -52,13 +52,21 @@ stoneImage.onload = function() {
 };
 stoneImage.src = "images/stone.png";
 
-// Monster image
-var monsterReady = false;
-var monsterImage = new Image();
-monsterImage.onload = function() {
-	monsterReady = true;
+// Green Monster image
+var greenMonsterReady = false;
+var greenMonsterImage = new Image();
+greenMonsterImage.onload = function() {
+	greenMonsterReady = true;
 };
-monsterImage.src = "images/monster.png";
+greenMonsterImage.src = "images/monsterGreen.png";
+
+// Blue Monster image
+var blueMonsterReady = false;
+var blueMonsterImage = new Image();
+blueMonsterImage.onload = function() {
+	blueMonsterReady = true;
+};
+blueMonsterImage.src = "images/monsterBlue.png";
 
 // Tower image
 var towerReady = false;
@@ -73,12 +81,17 @@ var hero = {
 	speed: 256 // movement in pixels per second
 };
 var princess = {};
-var princessesCaught = 0;
+var princessesSaved = 0;
 var stones = [];
 var tower = {};
-var monsters = [];
-var numMonsters = 1;
+var greenMonsters = [];
+var numGreenMonsters;
+var blueMonsters = [];
+var numBlueMonsters;
 var died = false;
+var greenMonstersSpeed = 86;
+var blueMonstersSpeed = 56;
+var level;
 
 // Handle keyboard controls
 var keysDown = {};
@@ -96,7 +109,7 @@ var isTouching = function(first, second) {
 		&& second.x <= (first.x + 32)
 		&& first.y <= (second.y + 32)
 		&& second.y <= (first.y + 32));
-}
+};
 
 var isNear = function(arr, element) {
 	for (var i = 0; i < arr.length; i++) {
@@ -108,32 +121,43 @@ var isNear = function(arr, element) {
 		}
 	}
 	return false;
+};
+
+var checkStones = function(element) {
+	return (isNear(stones, element));
+};
+
+var checkMonsters = function(element) {
+	return (isNear(greenMonsters, element)
+		|| isNear(blueMonsters, element));
 }
 
-var checkPosition = function(element) {
+var checkOverlap = function(element) {
 	return (isTouching(hero, element) 
-		|| isTouching(princess, element) 
-		|| isNear(stones, element)
-		|| isNear(monsters, element));
-}
+		|| checkStones(element)
+		|| checkMonsters(element));
+};
 
-var getRandXPos = function() {
-	return Math.floor(Math.random()*(RIGTH - LEFT)) + LEFT;
-}
+var getSign = function() {
+	if (Math.random() < 0.5) {
+		return -1;
+	}
+	return 1;
+};
 
-var getRandYPos = function() {
-	return Math.floor(Math.random()*(BOT - TOP)) + TOP;
-}
+var getRandPos = function(min, max) {
+	return Math.floor(Math.random()*(max - min)) + min;
+};
 
 var setCenterPos = function(element) {
 	element.x = canvas.width / 2;
 	element.y = canvas.height / 2;
-}
+};
 
 var setRandPos = function(element) {
-	element.x = getRandXPos();
-	element.y = getRandYPos();
-}
+	element.x = getRandPos(RIGTH, LEFT);
+	element.y = getRandPos(BOT, TOP);
+};
 
 // Initialize elements of array
 var init = function(arr, size) {
@@ -141,87 +165,141 @@ var init = function(arr, size) {
 		var element = {};
 		arr[i] = element;
 	}
-}
+};
 
 // Reset the game when the player catches a princess
 var reset = function() {
+	level = princessesSaved / 10  || 1;
+	numGreenMonsters = level;
+	numBlueMonsters = level < 3 ? level: 4;
+
 	init(stones, numStones);
-	init(monsters, numMonsters);
+	init(greenMonsters, numGreenMonsters);
+	init(blueMonsters, numBlueMonsters);
 
 	setCenterPos(hero);
 	setCenterPos(tower);
 	// Throw the princess somewhere on the screen randomly
-	do {
-		setRandPos(princess);
-	} while (isTouching(hero, princess));
 	for (var i in stones) {
 		do {
 			setRandPos(stones[i]);
-		} while (checkPosition(stones[i]));
+		} while (checkOverlap(stones[i]));
 	}
-	for (var i in monsters) {
+	do {
+		setRandPos(princess);
+	} while (checkOverlap(princess));
+	for (var i in greenMonsters) {
 		do {
-			setRandPos(monsters[i]);
-		} while (checkPosition(monsters[i]));
+			setRandPos(greenMonsters[i]);
+		} while (checkOverlap(greenMonsters[i]));
+	}
+	for (var i in blueMonsters) {
+		do {
+			setRandPos(blueMonsters[i]);
+		} while (checkOverlap(blueMonsters[i]));
 	}
 };
 
-var canMoveUp = function() {
-	return (!isNear(stones, hero) && hero.y > TOP);
+var getPos = function(origin, destiny) {
+	destiny.x = origin.x;
+	destiny.y = origin.y;
+};
+
+var canMoveUp = function(y) {
+	return (!isNear(stones, hero) && y > TOP);
+};
+
+var canMoveDown = function(y) {
+	return (!isNear(stones, hero) && y < BOT);
+};
+
+var canMoveRigth = function(x) {
+	return (!isNear(stones, hero) && x < RIGTH);
+};
+
+var canMoveLeft = function(x) {
+	return (!isNear(stones, hero) && x > LEFT);
+};
+
+var moveMonsterClose = function(monsters, speed, modifier) {
+	var aux = {};
+	var posBefore = {};
+	for (var i in monsters) {
+		aux.x = hero.x - monsters[i].x;
+		aux.y = hero.y - monsters[i].y;
+		getPos(monsters[i], posBefore);
+		monsters[i].x = monsters[i].x + Math.sign(aux.x) * speed * modifier;
+		monsters[i].y = monsters[i].y + Math.sign(aux.y) * speed * modifier;
+		if (checkStones(monsters[i])) {
+			getPos(posBefore, monsters[i]);
+		}
+	}
 }
 
-var canMoveDown = function() {
-	return (!isNear(stones, hero) && hero.y < BOT);
-}
-
-var canMoveRigth = function() {
-	return (!isNear(stones, hero) && hero.x < RIGTH);
-}
-
-var canMoveLeft = function() {
-	return (!isNear(stones, hero) && hero.x > LEFT);
-}
+// Parkinson Party
+var moveMonsterRand = function(speed, modifier) {
+	var posBefore = {};
+	for (var i in greenMonsters) {
+		getPos(greenMonsters[i], posBefore);
+		greenMonsters[i].x = greenMonsters[i].x + getSign() * greenMonstersSpeed * modifier;
+		greenMonsters[i].y = greenMonsters[i].y + getSign() * greenMonstersSpeed * modifier;
+		if (isNear(stones, greenMonsters[i])) {
+			getPos(posBefore, greenMonsters[i]);
+		}
+	}
+};
 
 // Update game objects
-var update = function (modifier) {
+var update = function(modifier) {
 	if (died) {
 		return;
 	}
 	var posBefore = {};
-	posBefore.x = hero.x;
-	posBefore.y = hero.y;
-	if (BUTTON_UP in keysDown && canMoveUp()) { // Player holding up
+	getPos(hero, posBefore);
+	if (BUTTON_UP in keysDown && canMoveUp(hero.y)) { // Player holding up
 		hero.y -= hero.speed * modifier;
+		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
+		//moveMonsterRand(modifier);
 	}
-	if (BUTTON_DOWN in keysDown && canMoveDown()) { // Player holding down
+	if (BUTTON_DOWN in keysDown && canMoveDown(hero.y)) { // Player holding down
 		hero.y += hero.speed * modifier;
+		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
+		//moveMonsterRand(modifier);
 	}
-	if (BUTTON_LEFT in keysDown && canMoveLeft()) { // Player holding left
+	if (BUTTON_LEFT in keysDown && canMoveLeft(hero.x)) { // Player holding left
 		hero.x -= hero.speed * modifier;
+		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
+		//moveMonsterRand(modifier);
 	}
-	if (BUTTON_RIGTH in keysDown && canMoveRigth()) { // Player holding right
+	if (BUTTON_RIGTH in keysDown && canMoveRigth(hero.x)) { // Player holding right
 		hero.x += hero.speed * modifier;
+		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
+		//moveMonsterRand(modifier);
 	}
 	if (isNear(stones, hero)) {
-		hero.x = posBefore.x;
-		hero.y = posBefore.y;
+		getPos(posBefore, hero);
 	}
+	moveMonsterClose(blueMonsters, blueMonstersSpeed, modifier);
+	//moveMonsterRand(modifier);
 
 	// Are they touching?
 	if (isTouching(hero, princess)) {
-		++princessesCaught;
+		++princessesSaved;
 		reset();
 	}
 
-	if (isNear(monsters, hero)) {
+	if (checkMonsters(hero)) {
 		died = true;
 	}
 };
 
 // Draw everything
-var render = function () {
+var render = function() {
 	if (bgReady) {
 		ctx.drawImage(bgImage, 0, 0);
+	}
+	if (towerReady) {
+		ctx.drawImage(towerImage, tower.x, tower.y);
 	}
 	if (princessReady) {
 		ctx.drawImage(princessImage, princess.x, princess.y);
@@ -231,13 +309,15 @@ var render = function () {
 			ctx.drawImage(stoneImage, stones[i].x, stones[i].y);
 		}
 	}
-	if (monsterReady) {
-		for (var i in monsters) {
-			ctx.drawImage(monsterImage, monsters[i].x, monsters[i].y)
+	if (greenMonsterReady) {
+		for (var i in greenMonsters) {
+			ctx.drawImage(greenMonsterImage, greenMonsters[i].x, greenMonsters[i].y)
 		}
 	}
-	if (towerReady) {
-		ctx.drawImage(towerImage, tower.x, tower.y);
+	if (blueMonsterReady) {
+		for (var i in blueMonsters) {
+			ctx.drawImage(blueMonsterImage, blueMonsters[i].x, blueMonsters[i].y)
+		}
 	}
 	if (heroReady) {
 		ctx.drawImage(heroImage, hero.x, hero.y);
@@ -248,14 +328,15 @@ var render = function () {
 	ctx.font = "24px Helvetica";
 	ctx.textAlign = "left";
 	ctx.textBaseline = "top";
-	ctx.fillText("Princesses caught: " + princessesCaught, 32, 32);
+	ctx.fillText("Level: " + Math.ceil(level), 32, 12);
+	ctx.fillText("Princesses caught: " + princessesSaved, 32, 32);
 	if (died) {
 		ctx.fillText("Game Over", 200, 200);
 	}
 };
 
 // The main game loop
-var main = function () {
+var main = function() {
 	var now = Date.now();
 	var delta = now - then;
 
