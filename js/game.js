@@ -5,7 +5,7 @@
 
 const BUTTON_UP = 38;
 const BUTTON_DOWN = 40;
-const BUTTON_RIGTH = 39;
+const BUTTON_RIGHT = 39;
 const BUTTON_LEFT = 37;
 const numStones = 5;
 
@@ -17,7 +17,26 @@ canvas.height = 480;
 const TOP = 32;
 const BOT = canvas.height - 64;
 const LEFT = 32;
-const RIGTH = canvas.width - 64;
+const RIGHT = canvas.width - 64;
+const SAVESPACE = 120;
+const RANGETOP = {
+	min: TOP,
+	max: SAVESPACE
+};
+const RANGEBOT = {
+	min: BOT - SAVESPACE,
+	max: BOT
+};
+const RANGERIGHT = {
+	min: RIGHT - SAVESPACE,
+	max: RIGHT
+};
+const RANGELEFT = {
+	min: LEFT,
+	max: LEFT + SAVESPACE
+};
+const RANGESX = [RANGETOP, RANGEBOT];
+const RANGESY = [RANGERIGHT, RANGELEFT];
 document.body.appendChild(canvas);
 
 // Background image
@@ -139,10 +158,7 @@ var checkOverlap = function(element) {
 };
 
 var getSign = function() {
-	if (Math.random() < 0.5) {
-		return -1;
-	}
-	return 1;
+	return (Math.random() < 0.5) ? -1 : 1;
 };
 
 var getRandPos = function(min, max) {
@@ -154,9 +170,16 @@ var setCenterPos = function(element) {
 	element.y = canvas.height / 2;
 };
 
+var setRangePos = function(element) {
+	var posX = Math.floor(Math.random() * RANGESX.length);
+	var posY = Math.floor(Math.random() * RANGESY.length);
+	element.x = getRandPos(RANGESX[posX].min, RANGESX[posX].max);
+	element.y = getRandPos(RANGESX[posY].min, RANGESX[posY].max);
+}
+
 var setRandPos = function(element) {
-	element.x = getRandPos(RIGTH, LEFT);
-	element.y = getRandPos(BOT, TOP);
+	element.x = getRandPos(LEFT,RIGHT);
+	element.y = getRandPos(TOP, BOT);
 };
 
 // Initialize elements of array
@@ -190,12 +213,14 @@ var reset = function() {
 	} while (checkOverlap(princess));
 	for (var i in greenMonsters) {
 		do {
-			setRandPos(greenMonsters[i]);
+			setRangePos(greenMonsters[i]);
+			//setRandPos(greenMonsters[i]);
 		} while (checkOverlap(greenMonsters[i]));
 	}
 	for (var i in blueMonsters) {
 		do {
-			setRandPos(blueMonsters[i]);
+			setRangePos(blueMonsters[i]);
+			//setRandPos(blueMonsters[i]);
 		} while (checkOverlap(blueMonsters[i]));
 	}
 };
@@ -213,8 +238,8 @@ var canMoveDown = function(y) {
 	return (!isNear(stones, hero) && y < BOT);
 };
 
-var canMoveRigth = function(x) {
-	return (!isNear(stones, hero) && x < RIGTH);
+var canMoveRight = function(x) {
+	return (!isNear(stones, hero) && x < RIGHT);
 };
 
 var canMoveLeft = function(x) {
@@ -271,7 +296,7 @@ var update = function(modifier) {
 		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
 		//moveMonsterRand(modifier);
 	}
-	if (BUTTON_RIGTH in keysDown && canMoveRigth(hero.x)) { // Player holding right
+	if (BUTTON_RIGHT in keysDown && canMoveRight(hero.x)) { // Player holding right
 		hero.x += hero.speed * modifier;
 		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
 		//moveMonsterRand(modifier);
