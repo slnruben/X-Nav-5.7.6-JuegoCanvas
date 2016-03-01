@@ -1,7 +1,7 @@
 // Original game from:
 // http://www.lostdecadegames.com/how-to-make-a-simple-html5-canvas-game/
 // Slight modifications by Gregorio Robles <grex@gsyc.urjc.es>
-// to meet the criteria of a canvas class for DAT @ Univ. Rey Juan Carlos
+// to meet the criteria of a canvas class for AT @ Univ. Rey Juan Carlos
 
 const BUTTON_UP = 38;
 const BUTTON_DOWN = 40;
@@ -95,6 +95,38 @@ towerImage.onload = function() {
 };
 towerImage.src = "images/tower.png";
 
+// Heart image
+var heartReady = false;
+var heartImage = new Image();
+heartImage.onload = function() {
+	heartReady = true;
+};
+heartImage.src = "images/heart.png";
+
+// Shield image
+var shieldReady = false;
+var shieldImage = new Image();
+shieldImage.onload = function() {
+	shieldReady = true;
+};
+shieldImage.src = "images/shield.png";
+
+// Sword image
+var swordReady = false;
+var swordImage = new Image();
+swordImage.onload = function() {
+	swordReady = true;
+};
+swordImage.src = "images/sword.png";
+
+// Boot image
+var bootReady = false;
+var bootImage = new Image();
+bootImage.onload = function() {
+	bootReady = true;
+};
+bootImage.src = "images/boot.png";
+
 // Game objects
 var hero = {
 	speed: 256 // movement in pixels per second
@@ -103,14 +135,22 @@ var princess = {};
 var princessesSaved = 0;
 var stones = [];
 var tower = {};
+var shield = {};
+var sword = {};
+var boot = {};
 var greenMonsters = [];
 var numGreenMonsters;
 var blueMonsters = [];
 var numBlueMonsters;
 var died = false;
-var greenMonstersSpeed = 86;
-var blueMonstersSpeed = 56;
+var greenMonstersSpeed = 76;
+var blueMonstersSpeed = 46;
 var level;
+var lives = 3;
+var numAttacks = 0;
+var shieldPicked = false;
+var swordPicked = false;
+var bootPicked = false;
 
 // Handle keyboard controls
 var keysDown = {};
@@ -123,12 +163,26 @@ addEventListener("keyup", function (e) {
 	delete keysDown[e.keyCode];
 }, false);
 
-var isTouching = function(first, second) {
-	return (first.x <= (second.x + 32)
-		&& second.x <= (first.x + 32)
-		&& first.y <= (second.y + 32)
-		&& second.y <= (first.y + 32));
+var getDistance = function(element1, element2) {
+	return Math.sqrt(Math.pow((element2.x - element1.x), 2) 
+					+ Math.pow((element2.y - element1.y), 2));
 };
+
+var isTouching = function(first, second) {
+	return (first.x <= (second.x + 31)
+		&& second.x <= (first.x + 31)
+		&& first.y <= (second.y + 31)
+		&& second.y <= (first.y + 31));
+};
+
+var isStoneNear = function(element) {
+	for (var i = 0; i < stones.length; i++) {
+		if (getDistance(element, stones[i]) < 32) {
+			return true;
+		}
+	}
+	return false;
+}
 
 var isNear = function(arr, element) {
 	for (var i = 0; i < arr.length; i++) {
@@ -192,9 +246,12 @@ var init = function(arr, size) {
 
 // Reset the game when the player catches a princess
 var reset = function() {
+	shieldPicked = false;
+	swordPicked = false;
+	bootPicked = false;
 	level = princessesSaved / 10  || 1;
 	numGreenMonsters = level;
-	numBlueMonsters = level < 3 ? level: 4;
+	numBlueMonsters = level < 3 ? level : 4;
 
 	init(stones, numStones);
 	init(greenMonsters, numGreenMonsters);
@@ -209,18 +266,25 @@ var reset = function() {
 		} while (checkOverlap(stones[i]));
 	}
 	do {
+		setRandPos(shield);
+	} while (checkOverlap(shield));
+	do {
+		setRandPos(sword);
+	} while (checkOverlap(sword));
+	do {
+		setRandPos(boot);
+	} while (checkOverlap(boot));
+	do {
 		setRandPos(princess);
 	} while (checkOverlap(princess));
 	for (var i in greenMonsters) {
 		do {
 			setRangePos(greenMonsters[i]);
-			//setRandPos(greenMonsters[i]);
 		} while (checkOverlap(greenMonsters[i]));
 	}
 	for (var i in blueMonsters) {
 		do {
 			setRangePos(blueMonsters[i]);
-			//setRandPos(blueMonsters[i]);
 		} while (checkOverlap(blueMonsters[i]));
 	}
 };
@@ -231,19 +295,19 @@ var getPos = function(origin, destiny) {
 };
 
 var canMoveUp = function(y) {
-	return (!isNear(stones, hero) && y > TOP);
+	return (y > TOP);
 };
 
 var canMoveDown = function(y) {
-	return (!isNear(stones, hero) && y < BOT);
+	return (y < BOT);
 };
 
 var canMoveRight = function(x) {
-	return (!isNear(stones, hero) && x < RIGHT);
+	return (x < RIGHT);
 };
 
 var canMoveLeft = function(x) {
-	return (!isNear(stones, hero) && x > LEFT);
+	return (x > LEFT);
 };
 
 var moveMonsterClose = function(monsters, speed, modifier) {
@@ -255,21 +319,32 @@ var moveMonsterClose = function(monsters, speed, modifier) {
 		getPos(monsters[i], posBefore);
 		monsters[i].x = monsters[i].x + Math.sign(aux.x) * speed * modifier;
 		monsters[i].y = monsters[i].y + Math.sign(aux.y) * speed * modifier;
-		if (checkStones(monsters[i])) {
+		if (isStoneNear(monsters[i])) {
 			getPos(posBefore, monsters[i]);
+		}
+		if (isTouching(hero, monsters[i])) {
+			if (numAttacks) {
+				monsters.splice(i, 1);
+				--numAttacks;
+			} else if (lives) {
+				--lives;
+				reset();
+			} else {
+				died = true;
+			}
 		}
 	}
 }
 
 // Parkinson Party
-var moveMonsterRand = function(speed, modifier) {
+var moveMonsterRand = function(monsters, speed, modifier) {
 	var posBefore = {};
-	for (var i in greenMonsters) {
-		getPos(greenMonsters[i], posBefore);
-		greenMonsters[i].x = greenMonsters[i].x + getSign() * greenMonstersSpeed * modifier;
-		greenMonsters[i].y = greenMonsters[i].y + getSign() * greenMonstersSpeed * modifier;
-		if (isNear(stones, greenMonsters[i])) {
-			getPos(posBefore, greenMonsters[i]);
+	for (var i in monsters) {
+		getPos(monsters[i], posBefore);
+		monsters[i].x = monsters[i].x + getSign() * speed * modifier;
+		monsters[i].y = monsters[i].y + getSign() * speed * modifier;
+		if (isNear(stones, monsters[i])) {
+			getPos(posBefore, monsters[i]);
 		}
 	}
 };
@@ -301,20 +376,28 @@ var update = function(modifier) {
 		moveMonsterClose(greenMonsters, greenMonstersSpeed, modifier);
 		//moveMonsterRand(modifier);
 	}
-	if (isNear(stones, hero)) {
+	if (isStoneNear(hero)) {
 		getPos(posBefore, hero);
 	}
 	moveMonsterClose(blueMonsters, blueMonstersSpeed, modifier);
 	//moveMonsterRand(modifier);
 
 	// Are they touching?
+	if (isTouching(hero, shield) && !shieldPicked) {
+		++lives;
+		shieldPicked = true;
+	}
+	if (isTouching(hero, sword) && !swordPicked) {
+		++numAttacks;
+		swordPicked = true;
+	}
+	if (isTouching(hero, boot) && !bootPicked) {
+		hero.speed += 5;
+		bootPicked = true;
+	}
 	if (isTouching(hero, princess)) {
 		++princessesSaved;
 		reset();
-	}
-
-	if (checkMonsters(hero)) {
-		died = true;
 	}
 };
 
@@ -322,6 +405,26 @@ var update = function(modifier) {
 var render = function() {
 	if (bgReady) {
 		ctx.drawImage(bgImage, 0, 0);
+	}
+	if (heartReady) {
+		if (lives > 3) {
+			ctx.drawImage(heartImage, 200, 8);
+			ctx.fillText("x " + lives, 200 + 32, 8);
+		} else {
+			for (var i = 0; i < lives; i++) {
+				ctx.drawImage(heartImage, 200 + i * 32, 8);
+			}
+		}
+	}
+	if (shieldReady && !shieldPicked) {
+		ctx.drawImage(shieldImage, shield.x, shield.y);
+	}
+	if (swordReady && !swordPicked) {
+		
+		ctx.drawImage(swordImage, sword.x, sword.y);
+	}
+	if (bootReady && !bootPicked) {
+		ctx.drawImage(bootImage, boot.x, boot.y);
 	}
 	if (towerReady) {
 		ctx.drawImage(towerImage, tower.x, tower.y);
@@ -353,8 +456,12 @@ var render = function() {
 	ctx.font = "24px Helvetica";
 	ctx.textAlign = "left";
 	ctx.textBaseline = "top";
-	ctx.fillText("Level: " + Math.ceil(level), 32, 12);
-	ctx.fillText("Princesses caught: " + princessesSaved, 32, 32);
+	ctx.fillText("Level: " + Math.ceil(level) + "  Lives: ", 32, 12);
+	var stage = document.getElementById("stage");
+	var heroSpeed = document.getElementById("speed");
+	ctx.fillText("Swords: " + numAttacks, 300, 8)
+	stage.innerHTML = "Princesses saved: " + princessesSaved;
+	heroSpeed.innerHTML = "Hero speed: " + hero.speed;
 	if (died) {
 		ctx.fillText("Game Over", 200, 200);
 	}
